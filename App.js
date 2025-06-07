@@ -5,6 +5,8 @@ import Login from './Screen/Login';
 import Main from './Screen/Main.js';
 import Profile from './Screen/Profile.js';
 import Messaging from './Screen/Messaging.js';
+import MapScreen from './Screen/Map.js';
+import SearchScreen from './Screen/Search.js';
 
 
 
@@ -16,7 +18,8 @@ export default function App() {
       <Stack.Navigator initialRouteName="Login">
         <Stack.Screen name="Login" component={Login} options={{ headerShown: false }}/>
         <Stack.Screen name="Main" component={Main} options={{ headerShown: false }}/>
-        
+        <Stack.Screen name="Map" component={MapScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Messaging" component={Messaging} options={{ headerShown: false }}/>
         <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }}/>
       </Stack.Navigator>

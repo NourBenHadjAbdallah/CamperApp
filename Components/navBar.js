@@ -51,7 +51,7 @@ const NavBar = ({ activeTab }) => {
         <Ionicons 
           name="chatbubble-outline" 
           size={24} 
-          color={activeTab === 'Chat' ? "#4A90E2" : "#888"} 
+          color={activeTab === 'Messaging' ? "#4A90E2" : "#888"} 
         />
       </TouchableOpacity>
       

@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import NavBar from '../Components/navBar';
 
 const Messaging = () => {
-      const [activeTab, setActiveTab] = useState('Map');
+      const [activeTab, setActiveTab] = useState('Messaging');
     
     const handleTabPress = (tabName) => {
         setActiveTab(tabName);
