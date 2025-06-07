@@ -1,28 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Import useRef
 import {
-  View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import NavBar from '../Components/navBar';
-import { supabase } from '../supabase'; // Import the Supabase client
+import { supabase } from '../supabase';
 import SearchBar from '../Components/SearchBar';
 
-// Avatar component remains the same
+// Avatar component
 const ContactAvatar = ({ initials, size = 60 }) => (
     <View style={[styles.avatar, { width: size, height: size }]}>
         <Text style={[styles.avatarText, { fontSize: size * 0.25 }]}>{initials}</Text>
     </View>
 );
 
-// MessageItem now uses data from the database
+// MessageItem component
 const MessageItem = ({ item }) => (
     <TouchableOpacity style={styles.messageItem}>
         <ContactAvatar initials={item.channel_name ? item.channel_name.substring(0, 2).toUpperCase() : '??'} size={50} />
         <View style={styles.messageContent}>
             <View style={styles.messageHeader}>
                 <Text style={styles.contactName}>{item.channel_name || 'Unknown Channel'}</Text>
-                <Text style={styles.messageTime}>{new Date(item.last_message_time).toLocaleTimeString()}</Text>
+                {item.last_message_time && (
+                    <Text style={styles.messageTime}>{new Date(item.last_message_time).toLocaleTimeString()}</Text>
+                )}
             </View>
             <View style={styles.messageBottom}>
                 <Text style={styles.messageText} numberOfLines={1}>
@@ -38,38 +40,44 @@ const Messaging = () => {
     const [channels, setChannels] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const channelsListener = useRef(null); // Use a ref to hold the listener
 
     useEffect(() => {
-        // Fetch initial channel data
+        // Fetch initial data on mount
         fetchChannels();
 
-        // Set up a real-time subscription to the messages table
-        const subscription = supabase
-            .channel('public:messages')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'messages' },
-                (payload) => {
-                    console.log('New message received!', payload.new);
-                    // When a new message comes in, re-fetch channels to update the "last message"
-                    fetchChannels();
-                }
-            )
-            .subscribe();
+        // --- FIX FOR MULTIPLE SUBSCRIPTIONS ---
+        // Ensure we only subscribe once
+        if (!channelsListener.current) {
+            channelsListener.current = supabase
+                .channel('public:messages')
+                .on(
+                    'postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'messages' },
+                    () => {
+                        console.log('New message detected, refetching channels...');
+                        fetchChannels();
+                    }
+                )
+                .subscribe();
+        }
 
-        // Cleanup subscription on unmount
+        // Cleanup on unmount
         return () => {
-            supabase.removeChannel(subscription);
+            if (channelsListener.current) {
+                supabase.removeChannel(channelsListener.current);
+                channelsListener.current = null;
+            }
         };
     }, []);
 
     const fetchChannels = async () => {
-        // Get the current logged-in user
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+            setLoading(false);
+            return;
+        }
 
-        // Fetch all channels that the user is a participant in, along with the last message for each.
-        // NOTE: This query can be complex. A database function (RPC) is often best for this in production.
         const { data, error } = await supabase.rpc('get_user_channels_with_last_message', { p_user_id: user.id });
 
         if (error) {
@@ -84,9 +92,30 @@ const Messaging = () => {
         setActiveTab(tabName);
     };
 
-    if (loading) {
-        return <ActivityIndicator size="large" color="#0000ff" style={{ flex: 1, justifyContent: 'center' }} />;
-    }
+    const renderContent = () => {
+        if (loading) {
+            return <ActivityIndicator size="large" color="#007BFF" style={styles.loader} />;
+        }
+        if (channels.length === 0) {
+            return (
+                <View style={styles.emptyContainer}>
+                    <Ionicons name="chatbubbles-outline" size={80} color="#ccc" />
+                    <Text style={styles.emptyText}>No conversations yet</Text>
+                    <Text style={styles.emptySubText}>Start a new chat to see it here.</Text>
+                </View>
+            );
+        }
+        return (
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>All messages</Text>
+                    {channels.map((channel) => (
+                        <MessageItem key={channel.channel_id} item={channel} />
+                    ))}
+                </View>
+            </ScrollView>
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -105,14 +134,7 @@ const Messaging = () => {
               style={styles.searchBar}
             />
 
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>All messages</Text>
-                    {channels.map((channel) => (
-                        <MessageItem key={channel.channel_id} item={channel} />
-                    ))}
-                </View>
-            </ScrollView>
+            {renderContent()}
 
             <NavBar activeTab={activeTab} onTabPress={handleTabPress} />
         </SafeAreaView>
@@ -123,6 +145,7 @@ export default Messaging;
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
+    loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
     headerTitle: { fontSize: 28, fontWeight: 'bold' },
     searchBar: { marginHorizontal: 20, marginBottom: 10 },
@@ -138,4 +161,21 @@ const styles = StyleSheet.create({
     messageText: { fontSize: 14, color: '#666', flex: 1 },
     avatar: { backgroundColor: '#ddd', borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
     avatarText: { color: '#666', fontWeight: '500' },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#888',
+        marginTop: 16,
+    },
+    emptySubText: {
+        fontSize: 14,
+        color: '#aaa',
+        marginTop: 8,
+        textAlign: 'center',
+    },
 });

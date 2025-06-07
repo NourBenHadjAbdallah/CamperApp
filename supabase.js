@@ -1,14 +1,28 @@
-
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Alert } from 'react-native';
 
-const supabaseUrl = 'https://vxesgiieplqugqvaxdap.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4ZXNnaWllcGxxdWdxdmF4ZGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1NzY2OTEsImV4cCI6MjA2MzE1MjY5MX0.HO3ItiDZCIDFpHTY316xvJd_eZo9b3lE9mJsszXE5fI'; // Make sure this is correct
+// Read the secure variables from the .env file
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+// --- DEBUGGING CHECK ---
+// This will immediately tell us if the .env file is not being loaded.
+console.log('Supabase URL Loaded:', supabaseUrl ? 'YES' : 'NO');
+console.log('Supabase Key Loaded:', supabaseAnonKey ? 'YES' : 'NO');
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  Alert.alert(
+    'Error: Missing Supabase Credentials',
+    'Could not read the Supabase URL or Key from the .env file. Please make sure the file exists and is named correctly, and that you have restarted the Expo server.'
+  );
+}
+// --------------------
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage, // Use AsyncStorage for now
+    storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
