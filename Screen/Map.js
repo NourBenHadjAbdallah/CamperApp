@@ -1,29 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     StyleSheet, 
     View, 
     SafeAreaView, 
     StatusBar,
-    Platform
+    Platform,
+    ActivityIndicator
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import NavBar from '../Components/navBar';
-import SearchBar from '../Components/SearchBar'; // Import the new component
-
-// Sample data for camping spots (remains the same)
-const popularSpots = [
-    { id: '1', name: 'Cap Angela', rating: 4.1, coordinate: { latitude: 37.3496, longitude: 9.8536 } },
-    { id: '2', name: 'Galite', rating: 4.1, coordinate: { latitude: 37.5255, longitude: 8.9406 } },
-];
-const recommendedSpots = [
-    { id: '3', name: 'Hammam Ghezeze', isHotDeal: true, coordinate: { latitude: 37.1069, longitude: 11.1114 } },
-    { id: '4', name: 'Oued El Ksab', isHotDeal: true, coordinate: { latitude: 36.8322, longitude: 11.0521 } },
-];
-const allSpots = [...popularSpots, ...recommendedSpots];
+import SearchBar from '../Components/SearchBar';
+import { supabase } from '../supabase'; // Import the supabase client
 
 export default function MapScreen() {
     const [activeTab, setActiveTab] = useState('Map');
     const [searchQuery, setSearchQuery] = useState('');
+    const [spots, setSpots] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSpotsForMap = async () => {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('spots')
+                .select('id, name, latitude, longitude, rating');
+            
+            if (error) {
+                console.error('Error fetching spots for map:', error);
+            } else {
+                setSpots(data);
+            }
+            setLoading(false);
+        };
+        fetchSpotsForMap();
+    }, []);
 
     const handleTabPress = (tabName) => {
         setActiveTab(tabName);
@@ -31,27 +41,30 @@ export default function MapScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <MapView
-                provider={PROVIDER_GOOGLE}
-                style={styles.map}
-                initialRegion={{
-                    latitude: 34.8869,
-                    longitude: 9.5375,
-                    latitudeDelta: 5,
-                    longitudeDelta: 5,
-                }}
-            >
-                {allSpots.map(spot => (
-                    <Marker
-                        key={spot.id}
-                        coordinate={spot.coordinate}
-                        title={spot.name}
-                        description={spot.rating ? `Rating: ${spot.rating}` : 'Hot Deal!'}
-                    />
-                ))}
-            </MapView>
+            {loading ? (
+                <ActivityIndicator size="large" color="#0000ff" style={styles.loader} />
+            ) : (
+                <MapView
+                    provider={PROVIDER_GOOGLE}
+                    style={styles.map}
+                    initialRegion={{
+                        latitude: 34.8869,
+                        longitude: 9.5375,
+                        latitudeDelta: 5,
+                        longitudeDelta: 5,
+                    }}
+                >
+                    {spots.map(spot => (
+                        <Marker
+                            key={spot.id}
+                            coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+                            title={spot.name}
+                            description={spot.rating ? `Rating: ${spot.rating}` : ''}
+                        />
+                    ))}
+                </MapView>
+            )}
 
-            {/* Use the reusable SearchBar component */}
             <SearchBar
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
@@ -67,13 +80,9 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    map: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    // Style to position the SearchBar on this specific screen
+    container: { flex: 1 },
+    map: { ...StyleSheet.absoluteFillObject },
+    loader: { flex: 1, justifyContent: 'center' },
     searchBarPosition: {
         position: 'absolute',
         top: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 50, 

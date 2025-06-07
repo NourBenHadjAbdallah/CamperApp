@@ -1,229 +1,153 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  View, 
-  Text, 
-  Image, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
-  SafeAreaView,
-  Alert,
-  Dimensions 
+  View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, 
+  SafeAreaView, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import NavBar from '../Components/navBar';
-
-const { width } = Dimensions.get('window');
-
-
+import { supabase } from '../supabase'; // Import the Supabase client
 
 const Profile = () => {
     const [activeTab, setActiveTab] = useState('Profile');
+    const [profile, setProfile] = useState(null);
+    const [stats, setStats] = useState({ posts: 0, followers: 0, following: 0 });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchProfileData();
+    }, []);
+
+    const fetchProfileData = async () => {
+        setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+            // Fetch profile information
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (profileError) console.error('Error fetching profile:', profileError);
+            else setProfile(profileData);
+
+            // Fetch stats in parallel
+            const [postsCount, followersCount, followingCount] = await Promise.all([
+                supabase.from('posts').select('id', { count: 'exact' }).eq('user_id', user.id),
+                supabase.from('followers').select('*', { count: 'exact' }).eq('following_id', user.id),
+                supabase.from('followers').select('*', { count: 'exact' }).eq('follower_id', user.id)
+            ]);
+
+            setStats({
+                posts: postsCount.count || 0,
+                followers: followersCount.count || 0,
+                following: followingCount.count || 0,
+            });
+        }
+        setLoading(false);
+    };
+
     const handleTabPress = (tabName) => {
-        setActiveTab(tabName);};
+        setActiveTab(tabName);
+    };
 
-    const [userStats, setUserStats] = useState({
-        name: "Nour Ben Hadj Abdallah",
-        email: "nourbenhadjabdallah@gmail.com",
-        pic: "",
-        posts: 54,
-        followers: 120,
-        following: 235,
-        level: 50,
-        rank: "Platinum Rank"
-    });
+    if (loading) {
+        return <ActivityIndicator size="large" color="#0000ff" style={styles.loader} />;
+    }
 
+    if (!profile) {
+        return <View style={styles.container}><Text>Could not load profile.</Text></View>
+    }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Header with settings icon */}
-      <View style={styles.header}>
-        <View style={styles.profileHeaderBackground}>
-          {/* Settings icon */}
-          <TouchableOpacity 
-            style={styles.settingsButton}
+    const avatarUrl = profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name || 'User'}&background=4A90E2&color=fff&size=200`;
 
-            activeOpacity={0.7}
-          >
-            <Ionicons name="settings-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        
-        {/* Profile info section */}
-        <View style={styles.profileInfoContainer}>
-          {/* Profile picture */}
-          <TouchableOpacity activeOpacity={0.8}>
-            <Image
-              source={{ uri: 'https://ui-avatars.com/api/?name=Nour+Ben+Hadj+Abdallah&background=4A90E2&color=fff&size=200' }}
-              style={styles.profilePicture}
-            />
-          </TouchableOpacity>
-          
-          {/* Name and email */}
-          <Text style={styles.profileName}>{userStats.name}</Text>
-          <Text style={styles.profileEmail}>{userStats.email}</Text>
-          
-
-          
-
-        </View>
-      </View>
-      
-      <ScrollView 
-        style={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-                {/* Trophy section */}
-          <TouchableOpacity 
-            style={styles.trophyContainer}
-            onPress={() => Alert.alert("Rank Info", `You are currently ${userStats.rank} at Level ${userStats.level}!`)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.trophyIconContainer}>
-              <Ionicons name="trophy" size={30} color="#fff" style={styles.trophyIcon} />
+    return (
+        <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+                <View style={styles.profileHeaderBackground}>
+                    <TouchableOpacity style={styles.settingsButton} activeOpacity={0.7}>
+                        <Ionicons name="settings-outline" size={24} color="#fff" />
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.profileInfoContainer}>
+                    <TouchableOpacity activeOpacity={0.8}>
+                        <Image source={{ uri: avatarUrl }} style={styles.profilePicture} />
+                    </TouchableOpacity>
+                    <Text style={styles.profileName}>{profile.full_name || 'No Name'}</Text>
+                    <Text style={styles.profileEmail}>{profile.email}</Text>
+                </View>
             </View>
-            <Text style={styles.rankText}>{userStats.rank}</Text>
-            <Text style={styles.levelText}>Level {userStats.level}</Text>
-          </TouchableOpacity>
-          
-          {/* Stats section */}
-          <View style={styles.statsContainer}>
-            <TouchableOpacity 
-              style={styles.statItem}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.statNumber}>{userStats.posts}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
-            </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.statItem}
+            <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
+                <View style={styles.statsContainer}>
+                    <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
+                        <Text style={styles.statNumber}>{stats.posts}</Text>
+                        <Text style={styles.statLabel}>Posts</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
+                        <Text style={styles.statNumber}>{stats.followers}</Text>
+                        <Text style={styles.statLabel}>Followers</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
+                        <Text style={styles.statNumber}>{stats.following}</Text>
+                        <Text style={styles.statLabel}>Following</Text>
+                    </TouchableOpacity>
+                </View>
 
-              activeOpacity={0.7}
-            >
-              <Text style={styles.statNumber}>{userStats.followers}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.statItem}
+                {/* Other sections like Spots and Gallery can be populated similarly */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>My Spots</Text>
+                    {/* You can fetch and display user-specific spots here */}
+                </View>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>My Gallery</Text>
+                    {/* You can fetch and display user's gallery images here */}
+                </View>
 
-              activeOpacity={0.7}
-            >
-              <Text style={styles.statNumber}>{userStats.following}</Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </TouchableOpacity>
-          </View>
+            </ScrollView>
 
-        {/* Spots section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Spots</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.mapContainer}
-            activeOpacity={0.8}
-          >
-            <View style={styles.mapPlaceholder}>
-
-              
-              {/* Add a subtle grid pattern */}
-              <View style={styles.mapGrid} />
-            </View>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Gallery section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Gallery</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity 
-            activeOpacity={0.8}
-          >
-            <Image
-              source={{ uri: 'https://picsum.photos/400/200?random=1' }}
-              style={styles.galleryImage}
-            />
-          </TouchableOpacity>
-          
-          {/* Additional gallery images */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.galleryScrollView}
-          >
-            {[2, 3, 4, 5].map((num) => (
-              <TouchableOpacity 
-                key={num}
-                activeOpacity={0.8}
-              >
-                <Image
-                  source={{ uri: `https://picsum.photos/120/120?random=${num}` }}
-                  style={styles.galleryThumbnail}
-                />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-        
-        {/* Add some bottom padding for better scrolling */}
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-
-        {/* Bottom Navigation */}
-      <NavBar activeTab={activeTab} onTabPress={handleTabPress} />
-    </SafeAreaView>
-  );
+            <NavBar activeTab={activeTab} onTabPress={handleTabPress} />
+        </SafeAreaView>
+    );
 };
 
+export default Profile;
+
+// Add loader style and keep other styles from your original file
 const styles = StyleSheet.create({
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
   header: {
     position: 'relative',
+    marginBottom: 20,
   },
   profileHeaderBackground: {
     height: 140,
     backgroundColor: '#7BC4E6',
-    position: 'relative',
   },
   settingsButton: {
     position: 'absolute',
     right: 20,
     top: 50,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   profileInfoContainer: {
     backgroundColor: '#fff',
     marginTop: -50,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    marginHorizontal: 20,
+    borderRadius: 20,
     alignItems: 'center',
     paddingBottom: 20,
     elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
@@ -246,49 +170,16 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 5,
   },
-  trophyContainer: {
-    alignItems: 'center',
-    marginTop: 25,
-  },
-  trophyIconContainer: {
-    width: 70,
-    height: 70,
-    backgroundColor: '#4A90E2',
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    elevation: 3,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  trophyIcon: {
-    textAlign: 'center',
-  },
-  rankText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  levelText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 2,
-  },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginTop: 25,
     paddingHorizontal: 30,
+    marginTop: 10,
   },
   statItem: {
     alignItems: 'center',
-    flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
   },
   statNumber: {
     fontSize: 20,
@@ -300,103 +191,16 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  achievementsButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    width: '90%',
-    padding: 18,
-    borderRadius: 12,
-    marginTop: 25,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  achievementsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
   contentContainer: {
     flex: 1,
   },
   section: {
     padding: 20,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#333',
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: '#4A90E2',
-    fontWeight: '500',
-  },
-  mapContainer: {
-    height: 180,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  mapPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#d6e8f5',
-    position: 'relative',
-  },
-  mapMarker: {
-    position: 'absolute',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#4A90E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-  },
-  mapGrid: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    opacity: 0.1,
-    backgroundColor: 'transparent',
-  },
-  galleryImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: '#f0f0f0',
-  },
-  galleryScrollView: {
-    marginTop: 15,
-  },
-  galleryThumbnail: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginRight: 10,
-    backgroundColor: '#f0f0f0',
-  },
-  bottomPadding: {
-    height: 20,
-  },
+    marginBottom: 10
+  }
 });
-
-export default Profile;
